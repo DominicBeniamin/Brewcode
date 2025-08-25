@@ -5,56 +5,26 @@ from typing import Callable, Dict
 
 # Categories of units
 UNIT_CATEGORIES: Dict[str, list[str]] = {
-    "volume": ["ml", "l", "cl", "dl", "m3", "tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "imp_fl_oz", "imp_pt", "imp_qt", "imp_gal"],
-    "mass": ["mg", "g", "kg", "tonne", "gr", "dr", "oz", "lb", "ton"],
+    "alcohol": ["abv", "abw", "proof(us)", "proof(uk)"],
     "density": ["g/ml", "g/l", "kg/m3", "lb/gal(us)", "lb/gal(uk)", "lb/ft3", "sg", "brix", "plato", "oe"],
+    "mass": ["mg", "g", "kg", "tonne", "gr", "dr", "oz", "lb", "ton"],
+    "volume": ["ml", "l", "cl", "dl", "m3", "tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "imp_fl_oz", "imp_pt", "imp_qt", "imp_gal"],
     "temperature": ["c", "k", "f"],
 }
 
-# VOLUME (base unit: liters)
-VOLUME_TO_L: Dict[str,float] = {
-    "ml": 0.001,
-    "l": 1,
-    "cl": 0.01,
-    "dl": 0.1,
-    "m3": 1000,
-    "tsp": 0.00492892,    # US teaspoon
-    "tbsp": 0.0147868,    # US tablespoon
-    "fl_oz": 0.0295735,   # US fluid ounce
-    "cup": 0.24,          # Metric cup
-    "pt": 0.473176,       # US pint
-    "qt": 0.946353,       # US quart
-    "gal": 3.78541,       # US gallon
-    "imp_fl_oz": 0.0284131, # Imperial fluid ounce
-    "imp_pt": 0.568261,   # Imperial pint
-    "imp_qt": 1.13652,    # Imperial quart
-    "imp_gal": 4.54609,   # Imperial gallon
+# ALCOHOL (base unit: ABV)
+ALCOHOL_TO_ABV: Dict[str,float] = { 
+    "abv": 1,
+    "abw": 0.794,
+    "proof(us)": 0.5,
+    "proof(uk)": 0.5714285714,  # 1/1.75
 }
 
-def convert_volume(value: float, from_unit: str, to_unit: str) -> float:
-    if from_unit not in VOLUME_TO_L or to_unit not in VOLUME_TO_L:
-        raise ValueError(f"Unsupported volume unit: {from_unit} or {to_unit}")
-    value_in_ml = value * VOLUME_TO_L[from_unit]
-    return value_in_ml / VOLUME_TO_L[to_unit]
-
-# MASS (base unit: grams)
-MASS_TO_G: Dict[str,float] = {
-    "mg": 0.001,
-    "g": 1,
-    "kg": 1000,
-    "tonne": 1_000_000,  # metric tonne
-    "gr": 0.06479891,
-    "dr": 1.7718451953125,
-    "oz": 28.349523125,
-    "lb": 453.59237,
-    "ton": 907_184.74,    # US short ton
-}
-
-def convert_mass(value: float, from_unit: str, to_unit: str) -> float:
-    if from_unit not in MASS_TO_G or to_unit not in MASS_TO_G:
-        raise ValueError(f"Unsupported mass unit: {from_unit} or {to_unit}")
-    value_in_g = value * MASS_TO_G[from_unit]
-    return value_in_g / MASS_TO_G[to_unit]
+def convert_alcohol(value: float, from_unit: str, to_unit: str) -> float:
+    if from_unit not in ALCOHOL_TO_ABV or to_unit not in ALCOHOL_TO_ABV:
+        raise ValueError(f"Unsupported alcohol unit: {from_unit} or {to_unit}")
+    value_in_abv = value * ALCOHOL_TO_ABV[from_unit]
+    return value_in_abv / ALCOHOL_TO_ABV[to_unit]
 
 # DENSITY (base unit: g/L)
 # Factor-based units
@@ -122,6 +92,25 @@ def convert_density(value: float, from_unit: str, to_unit: str) -> float:
     else:
         raise ValueError(f"Unsupported density unit: {to_unit}")
 
+# MASS (base unit: grams)
+MASS_TO_G: Dict[str,float] = {
+    "mg": 0.001,
+    "g": 1,
+    "kg": 1000,
+    "tonne": 1_000_000,  # metric tonne
+    "gr": 0.06479891,
+    "dr": 1.7718451953125,
+    "oz": 28.349523125,
+    "lb": 453.59237,
+    "ton": 907_184.74,    # US short ton
+}
+
+def convert_mass(value: float, from_unit: str, to_unit: str) -> float:
+    if from_unit not in MASS_TO_G or to_unit not in MASS_TO_G:
+        raise ValueError(f"Unsupported mass unit: {from_unit} or {to_unit}")
+    value_in_g = value * MASS_TO_G[from_unit]
+    return value_in_g / MASS_TO_G[to_unit]
+
 # TEMPERATURE (base unit: °C)
 def c_identity(x: float) -> float:
     return x
@@ -158,16 +147,44 @@ def convert_temperature(value: float, from_unit: str, to_unit: str) -> float:
     value_in_c = other_to_c(from_unit)(value)
     return c_to_other(to_unit)(value_in_c)
 
+# VOLUME (base unit: liters)
+VOLUME_TO_L: Dict[str,float] = {
+    "ml": 0.001,
+    "l": 1,
+    "cl": 0.01,
+    "dl": 0.1,
+    "m3": 1000,
+    "tsp": 0.00492892,    # US teaspoon
+    "tbsp": 0.0147868,    # US tablespoon
+    "fl_oz": 0.0295735,   # US fluid ounce
+    "cup": 0.24,          # Metric cup
+    "pt": 0.473176,       # US pint
+    "qt": 0.946353,       # US quart
+    "gal": 3.78541,       # US gallon
+    "imp_fl_oz": 0.0284131, # Imperial fluid ounce
+    "imp_pt": 0.568261,   # Imperial pint
+    "imp_qt": 1.13652,    # Imperial quart
+    "imp_gal": 4.54609,   # Imperial gallon
+}
+
+def convert_volume(value: float, from_unit: str, to_unit: str) -> float:
+    if from_unit not in VOLUME_TO_L or to_unit not in VOLUME_TO_L:
+        raise ValueError(f"Unsupported volume unit: {from_unit} or {to_unit}")
+    value_in_ml = value * VOLUME_TO_L[from_unit]
+    return value_in_ml / VOLUME_TO_L[to_unit]
+
 # Unified conversion function
 def convert(value: float, category: str, from_unit: str, to_unit: str) -> float:
-    if category == "volume":
-        return convert_volume(value, from_unit, to_unit)
+    if category == "alcohol":
+        return convert_alcohol(value, from_unit, to_unit)
+    elif category == "density":
+        return convert_density(value, from_unit, to_unit)
     elif category == "mass":
         return convert_mass(value, from_unit, to_unit)
     elif category == "temperature":
         return convert_temperature(value, from_unit, to_unit)
-    elif category == "density":
-        return convert_density(value, from_unit, to_unit)
+    elif category == "volume":
+        return convert_volume(value, from_unit, to_unit)
     else:
         raise ValueError(f"Unsupported category: {category}")
     
