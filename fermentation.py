@@ -1,5 +1,5 @@
 # fermentation.py
-from conversions import c_to_f
+from conversions import c_to_f, DENSITY_COMPLEX, gl_to_sg
 
 # Functions for estimating Alcohol by Volume (ABV)
 def corrected_gravity(mg: float, tr: float, tc: float, scale: str = "C") -> float:
@@ -71,8 +71,6 @@ def abv_hmrc(original_sg: float, final_sg: float, precision: int =2) -> float:
             return round(delta_sg * multiplier, precision)
     return round(delta_sg * 135, precision)  # fallback multiplier
 
-from conversions import DENSITY_COMPLEX, gl_to_sg
-from .fermentation import corrected_gravity
 
 # Unified ABV calculation function
 def abv(
