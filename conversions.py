@@ -6,7 +6,7 @@ from typing import Callable, Dict
 # Categories of units
 UNIT_CATEGORIES: Dict[str, list[str]] = {
     "alcohol": ["abv", "abw", "proof(us)", "proof(uk)"],
-    "density": ["g/ml", "g/l", "kg/m3", "lb/gal(us)", "lb/gal(uk)", "lb/ft3", "sg", "brix", "plato", "oe"],
+    "density": ["g/ml", "g/l", "kg/m3", "lb/gal(us)", "lb/gal(uk)", "lb/ft3", "sg", "brix", "plato", "oe", "tw"],
     "mass": ["mg", "g", "kg", "tonne", "gr", "dr", "oz", "lb", "ton"],
     "volume": ["ml", "l", "cl", "dl", "m3", "tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "imp_fl_oz", "imp_pt", "imp_qt", "imp_gal"],
     "temperature": ["c", "k", "f"],
@@ -66,11 +66,18 @@ def gl_to_oe(gl: float) -> float:
     sg = gl_to_sg(gl)
     return (sg - 1) * 1000
 
+def tw_to_gl(tw: float) -> float:
+    return tw / 4
+
+def gl_to_tw(gl: float) -> float:
+    return gl * 4
+
 DENSITY_COMPLEX: dict[str, tuple[Callable[[float], float], Callable[[float], float]]] = {
     "sg": (sg_to_gl, gl_to_sg),
     "brix": (brix_to_gl, gl_to_brix),
     "plato": (plato_to_gl, gl_to_plato),
     "oe": (oe_to_gl, gl_to_oe),
+    "tw": (tw_to_gl, gl_to_tw),
 }
 
 def convert_density(value: float, from_unit: str, to_unit: str) -> float:
@@ -80,6 +87,9 @@ def convert_density(value: float, from_unit: str, to_unit: str) -> float:
     elif from_unit in DENSITY_COMPLEX:
         to_gl, _ = DENSITY_COMPLEX[from_unit]
         value_in_gl = to_gl(value)
+    elif from_unit == "tw" in DENSITY_COMPLEX:
+        to_gl, _ = DENSITY_COMPLEX["tw"]
+        value_in_gl = to_gl(value)
     else:
         raise ValueError(f"Unsupported density unit: {from_unit}")
 
@@ -88,6 +98,9 @@ def convert_density(value: float, from_unit: str, to_unit: str) -> float:
         return value_in_gl / DENSITY_TO_G_L[to_unit]
     elif to_unit in DENSITY_COMPLEX:
         _, from_gl = DENSITY_COMPLEX[to_unit]
+        return from_gl(value_in_gl)
+    elif to_unit == "tw" in DENSITY_COMPLEX:
+        _, from_gl = DENSITY_COMPLEX["tw"]
         return from_gl(value_in_gl)
     else:
         raise ValueError(f"Unsupported density unit: {to_unit}")
