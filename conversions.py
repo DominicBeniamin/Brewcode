@@ -99,9 +99,6 @@ def convert_density(value: float, from_unit: str, to_unit: str) -> float:
     elif to_unit in DENSITY_COMPLEX:
         _, from_gl = DENSITY_COMPLEX[to_unit]
         return from_gl(value_in_gl)
-    elif to_unit == "tw" in DENSITY_COMPLEX:
-        _, from_gl = DENSITY_COMPLEX["tw"]
-        return from_gl(value_in_gl)
     else:
         raise ValueError(f"Unsupported density unit: {to_unit}")
 
