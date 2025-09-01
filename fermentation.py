@@ -1,45 +1,64 @@
 # fermentation.py
-from conversions import c_to_f, DENSITY_COMPLEX, gl_to_sg
+from conversions import convert_alcohol, convert_temperature, DENSITY_COMPLEX, gl_to_sg
 
 # Functions for estimating Alcohol by Volume (ABV)
 def corrected_gravity(mg: float, tr: float, tc: float, scale: str = "C") -> float:
-    """Return the temperature-corrected specific gravity."""
+    """
+    Return the temperature-corrected specific gravity.
 
-    # Convert inputs to Fahrenheit if necessary
-    if scale.upper() == "C":
-        tr = c_to_f(tr)
-        tc = c_to_f(tc)
-    elif scale.upper() != "F":
+    Parameters
+    ----------
+    mg : float
+        Measured specific gravity (unitless, e.g., 1.050)
+    tr : float
+        Temperature at which the measurement was taken
+    tc : float
+        Target temperature for correction
+    scale : str, optional
+        Temperature scale of tr and tc ("C" for Celsius or "F" for Fahrenheit, default "C")
+
+    Returns
+    -------
+    float
+        Temperature-corrected specific gravity
+    """
+    # Normalize scale and convert to Fahrenheit for the formula
+    scale = scale.upper()
+    if scale not in {"C", "F"}:
         raise ValueError("scale must be either 'C' or 'F'")
 
+    tr_f: float = convert_temperature(tr, scale.lower(), "f")
+    tc_f: float = convert_temperature(tc, scale.lower(), "f")
+
     # Factor polynomial (°F-based)
-    def factor(t: float) -> float: 
+    def factor(t: float) -> float:
         return (
-            1.00130346 
-            - 0.000134722124 * t 
-            + 0.00000204052596 * t**2 
-            - 0.00000000232820948 * t**3 
+            1.00130346
+            - 0.000134722124 * t
+            + 0.00000204052596 * t**2
+            - 0.00000000232820948 * t**3
         )
 
-    return mg * (factor(tr) / factor(tc))
+    return mg * (factor(tr_f) / factor(tc_f))
 
-def abv_basic(original_sg: float, final_sg: float, precision: int = 2) -> float:
+
+def abv_basic(original_sg: float, final_sg: float) -> float:
     """
     Estimate ABV using the standard homebrew formula.
 
     ABV = (OG - FG) * 131.25
     """
-    return round((original_sg - final_sg) * 131.25, precision)
+    return round((original_sg - final_sg) * 131.25)
 
-def abv_berry(original_sg: float, final_sg: float, precision: int = 2) -> float:
+def abv_berry(original_sg: float, final_sg: float) -> float:
     """
     Estimate ABV using C.J.J. Berry's wine method.
 
     ABV = (OG - FG) / 0.736
     """
-    return round((original_sg - final_sg) / 0.736, precision)
+    return round((original_sg - final_sg) / 0.736)
 
-def abv_hall(original_sg: float, final_sg: float, precision: int = 2) -> float:
+def abv_hall(original_sg: float, final_sg: float) -> float:
     """
     Estimate ABV using Michael Hall's two-step ABW to ABV formula.
 
@@ -48,10 +67,10 @@ def abv_hall(original_sg: float, final_sg: float, precision: int = 2) -> float:
     """
     delta_sg = original_sg - final_sg
     abw = (76.08 * delta_sg) / (1.775 - original_sg)
-    abv = abw / 0.794
-    return round(abv, precision)
+    abv = convert_alcohol(abw, from_unit="abw", to_unit="abv")
+    return abv
 
-def abv_hmrc(original_sg: float, final_sg: float, precision: int =2) -> float:
+def abv_hmrc(original_sg: float, final_sg: float) -> float:
     """
     Estimate ABV using the UK HMRC table-based method for taxation.
 
@@ -68,8 +87,8 @@ def abv_hmrc(original_sg: float, final_sg: float, precision: int =2) -> float:
     delta_sg = round(original_sg - final_sg, 4)
     for threshold, multiplier in thresholds:
         if delta_sg <= threshold:
-            return round(delta_sg * multiplier, precision)
-    return round(delta_sg * 135, precision)  # fallback multiplier
+            return delta_sg * multiplier
+    return delta_sg * 135  # fallback multiplier
 
 
 # Unified ABV calculation function
@@ -77,12 +96,11 @@ def abv(
     original: float,
     final: float,
     scale: str = "sg",
-    formula: str = "basic",        # "basic", "berry", "hall", or "hmrc"
-    precision: int = 2,
+    formula: str = "basic", # "basic", "berry", "hall", or "hmrc"
     tr_og: float | None = None,
     tr_fg: float | None = None,
     tc: float | None = None,
-    temp_scale: str = "C"
+    temp_scale: str | None = "C"
 ) -> float:
     """
     Calculate Alcohol By Volume (ABV) using a chosen formula.
@@ -92,7 +110,6 @@ def abv(
     - final: Final gravity in the given scale
     - scale: one of 'sg', 'plato', 'brix', or 'oe' (default: 'sg')
     - formula: 'basic', 'berry', 'hall', or 'hmrc' (default: 'basic')
-    - precision: number of decimal places
     - tr_og: optional reading temperature for OG
     - tr_fg: optional reading temperature for FG
     - tc: optional hydrometer calibration temperature
@@ -115,60 +132,81 @@ def abv(
     fg_sg = gl_to_sg(fg_gl)
 
     # Apply temperature correction if provided
-    if tr_og is not None and tc is not None:
+    if tr_og is not None and tc is not None and temp_scale is not None:
         og_sg = corrected_gravity(og_sg, tr_og, tc, temp_scale)
-    if tr_fg is not None and tc is not None:
+    if tr_fg is not None and tc is not None and temp_scale is not None:
         fg_sg = corrected_gravity(fg_sg, tr_fg, tc, temp_scale)
 
     # Compute ABV using the chosen formula
     if formula == "basic":
-        abv_value = (og_sg - fg_sg) * 131.25
+        return abv_basic(og_sg, fg_sg)
     elif formula == "berry":
-        abv_value = (og_sg - fg_sg) / 0.736
+        return abv_berry(og_sg, fg_sg)
     elif formula == "hall":
-        # Hall formula: ABV = (OG - FG) * 133
-        abv_value = (og_sg - fg_sg) * 133
+        return abv_hall(og_sg, fg_sg)
     elif formula == "hmrc":
-        # HMRC formula: ABV = (OG - FG) * 0.372 / 0.78924 * 100
-        # Equivalent: (OG - FG) * 47.14
-        abv_value = (og_sg - fg_sg) * 47.14
+        return abv_hmrc(og_sg, fg_sg)
     else:
         raise ValueError("Unsupported formula. Choose 'basic', 'berry', 'hall', or 'hmrc'.")
 
-    return round(abv_value, precision)
 
 # Secondary Fermentation: Priming Sugar Calculations (Metric backend standard)
-def priming_sugar(
+def priming(
     vol_co2: float,
     beverage_vol_l: float,
-    temp_c: float,
+    temp: float,
+    temp_unit: str = "c",
     *,
     sg: float
 ) -> tuple[float, float, float]:
     """
     Estimate priming sugar (in grams and milliliters) needed to carbonate a beverage
-    during secondary fermentation. Input should be metric and temperature in Celsius.
+    during secondary fermentation. Accepts temperature in Celsius or Fahrenheit.
 
-    Parameters:
-    - vol_co2: Desired carbonation level (CO2 volumes)
-    - beverage_vol_l: Volume of beverage to carbonate (liters)
-    - temp_c: Bottling temperature in degrees Celsius
-    - sg: Specific gravity of the sugar source (must be provided)
+    Parameters
+    ----------
+    vol_co2 : float
+        Desired carbonation level (CO2 volumes)
+    beverage_vol_l : float
+        Volume of beverage to carbonate (liters)
+    temp : float
+        Bottling temperature (numeric value)
+    temp_unit : str, optional
+        Unit of `temp`, either "c" for Celsius or "f" for Fahrenheit (default "c")
+    sg : float
+        Specific gravity of the sugar source (must be provided)
 
-    Returns:
-    - Tuple of estimated sugar required:
-      (weight in grams, approximate volume in milliliters, estimated SG after priming)
+    Returns
+    -------
+    tuple[float, float, float]
+        Estimated sugar required:
+        (weight in grams, approximate volume in milliliters, estimated SG after priming)
+
+    Notes
+    -----
+    - The calculation converts the input temperature to Fahrenheit internally for the
+      priming formula.
+    - Rounding is not applied; frontend or user preferences should handle formatting.
     """
-    temp_f = temp_c * 9 / 5 + 32
-    priming_g = 2.0 * beverage_vol_l * (
+    # Normalize temperature unit
+    temp_unit = temp_unit.lower()
+    if temp_unit not in {"c", "f"}:
+        raise ValueError(f"Unsupported temperature unit: {temp_unit}")
+
+    # Convert temperature to Fahrenheit for priming formula
+    temp_f: float = convert_temperature(temp, temp_unit, "f")
+
+    # Calculate priming sugar in grams using empirical formula
+    priming_g: float = 2.0 * beverage_vol_l * (
         vol_co2 - 3.0378 + 0.050062 * temp_f - 0.00026555 * temp_f ** 2
     )
 
-    sugar_density = 1.587  # Table sugar density in g/mL
-    priming_ml = priming_g / sugar_density
+    sugar_density: float = 1.587  # Table sugar density in g/mL
+    priming_ml: float = priming_g / sugar_density  # Approximate volume in mL
 
-    # Estimate SG increase: 4 Brix per 1000g/L → 0.004 SG per 10g/L
-    delta_sg = (priming_g / beverage_vol_l) * 0.0004
-    sg_after_priming = round(sg + delta_sg, 5)
+    # Estimate increase in specific gravity due to added sugar
+    delta_sg: float = (priming_g / beverage_vol_l) * 0.0004
+    sg_after_priming: float = sg + delta_sg
 
-    return round(priming_g, 2), round(priming_ml, 2), sg_after_priming
+    return priming_g, priming_ml, sg_after_priming
+
