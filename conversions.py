@@ -1,115 +1,52 @@
 # conversions.py
 
-from typing import Callable, Dict
+from typing import Callable, Dict, NamedTuple
 
-
-# Categories of units
-UNIT_CATEGORIES: Dict[str, list[str]] = {
-    "alcohol": ["abv", "abw", "proof(us)", "proof(uk)"],
-    "density": ["g/ml", "g/l", "kg/m3", "lb/gal(us)", "lb/gal(uk)", "lb/ft3", "sg", "brix", "plato", "oe", "tw"],
-    "mass": ["mg", "g", "kg", "tonne", "gr", "dr", "oz", "lb", "ton"],
-    "volume": ["ml", "l", "cl", "dl", "m3", "tsp", "tbsp", "fl_oz", "cup", "pt", "qt", "gal", "imp_fl_oz", "imp_pt", "imp_qt", "imp_gal"],
-    "temperature": ["c", "k", "f"],
-}
-
-# User-facing labels for dropdowns / UI
-ALCOHOL_LABELS: Dict[str, str] = {
-    "abv": "ABV",
-    "abw": "ABW",
-    "proof(us)": "Proof (US)",
-    "proof(uk)": "Proof (UK)",
-}
-
-DENSITY_LABELS: dict[str, str] = {
-    "sg": "Specific Gravity (SG)",
-    "brix": "°Bx (Brix)",
-    "plato": "°P (Plato)",
-    "oe": "°Oe (Oechsle)",
-    "tw": "°Tw (Twaddell)",
-    "g/ml": "g/mL",
-    "g/l": "g/L",
-    "kg/m3": "kg/m³",
-    "lb/gal(us)": "lb/gal (US)",
-    "lb/gal(uk)": "lb/gal (UK)",
-    "lb/ft3": "lb/ft³",
-}
-
-MASS_LABELS: Dict[str, str] = {
-    "mg": "mg",
-    "g": "g",
-    "kg": "kg",
-    "tonne": "t",
-    "gr": "gr",
-    "dr": "dr",
-    "oz": "oz",
-    "lb": "lb",
-    "ton": "ton",
-}
-
-VOLUME_LABELS: Dict[str, str] = {
-    "ml": "mL",
-    "l": "L",
-    "cl": "cL",
-    "dl": "dL",
-    "m3": "m³",
-    "tsp": "tsp",
-    "tbsp": "tbsp",
-    "fl_oz": "fl oz",
-    "cup": "cup",
-    "pt": "pt",
-    "qt": "qt",
-    "gal": "gal",
-    "imp_fl_oz": "imp fl oz",
-    "imp_pt": "imp pt",
-    "imp_qt": "imp qt",
-    "imp_gal": "imp gal",
-}
-
-TEMP_LABELS = {
-    "c": "°C",
-    "f": "°F",
-    "k": "K",
-}
 
 # Helper functions
-def build_label_to_key(labels: dict[str, str]) -> dict[str, str]:
+def normalise_unit(unit: str, category: str) -> str:
     """
-    Build a reverse lookup dictionary (label → key) from a label mapping (key → label).
-    """
-    return {label: key for key, label in labels.items()}
+    Normalise a user-facing unit label or key into its canonical internal unit key.
 
-def normalise_unit(unit: str, labels: dict[str, str]) -> str:
-    """
-    Normalise a unit string to its internal key.
-    
-    Accepts either:
-      - the internal key (e.g. "g/l")
-      - the user-facing label (e.g. "g/L")
-    
     Parameters
     ----------
     unit : str
-        The unit to normalize.
-    labels : dict[str, str]
-        Mapping of internal keys to user-facing labels.
+        The unit string provided by the user (can be a key like "sg" or a label like "Specific Gravity (SG)").
+    category : str
+        The category of the unit ("alcohol", "density", "mass", "temperature", "volume").
 
     Returns
     -------
     str
-        The normalized internal key.
+        The normalised unit key (e.g., "sg", "c", "abv").
+
+    Raises
+    ------
+    ValueError
+        If the unit cannot be resolved within the given category.
     """
-    if unit in labels:  # already a key
-        return unit
-    label_to_key = build_label_to_key(labels)
-    if unit in label_to_key:
-        return label_to_key[unit]
-    raise ValueError(f"Unsupported unit: {unit}")
+    category = category.lower()
+
+    if category not in CONVERSIONS:
+        raise ValueError(f"Unsupported category: {category}")
+
+    units = CONVERSIONS[category].units
+
+    unit_lower = unit.lower()
+
+    # Direct match (internal key)
+    if unit_lower in units:
+        return unit_lower
+
+    # Reverse lookup by label
+    for key, label in units.items():
+        if unit_lower == label.lower():
+            return key
+
+    raise ValueError(f"Unsupported unit '{unit}' for category '{category}'")
 
 
-# ALCOHOL (base unit: ABV)
-# ----------------------------
 # ALCOHOL CONTENT (base unit: ABV)
-# ----------------------------
 
 # Conversion factors to ABV
 ALCOHOL_TO_ABV: Dict[str, float] = {
@@ -137,19 +74,10 @@ def convert_alcohol(value: float, from_unit: str, to_unit: str) -> float:
     -------
     float
         Converted alcohol content in the requested unit.
-
-    Raises
-    ------
-    ValueError
-        If either `from_unit` or `to_unit` is not recognised.
     """
     # Step 1: Normalise units
-    from_unit = normalise_unit(from_unit, ALCOHOL_LABELS)
-    to_unit = normalise_unit(to_unit, ALCOHOL_LABELS)
-
-    # Step 2: Check validity
-    if from_unit not in ALCOHOL_TO_ABV or to_unit not in ALCOHOL_TO_ABV:
-        raise ValueError(f"Unsupported alcohol unit: {from_unit} or {to_unit}")
+    from_unit = normalise_unit(from_unit, "alcohol")
+    to_unit = normalise_unit(to_unit, "alcohol")
 
     # Step 3: Convert
     value_in_abv = value * ALCOHOL_TO_ABV[from_unit]
@@ -158,7 +86,7 @@ def convert_alcohol(value: float, from_unit: str, to_unit: str) -> float:
 
 # DENSITY (base unit: g/L)
 
-# --- Factor-based units (simple scaling) ---
+# Factor-based units (simple scaling)
 # These are direct multipliers to/from g/L.
 DENSITY_TO_G_L: dict[str, float] = {
     "g/ml": 1000,       # grams per millilitre
@@ -170,7 +98,7 @@ DENSITY_TO_G_L: dict[str, float] = {
 }
 
 
-# --- Complex brewing scales (empirical formulas) ---
+# Complex brewing scales (empirical formulas)
 
 def sg_to_gl(sg: float) -> float:
     """Convert Specific Gravity (SG, dimensionless) to density in g/L."""
@@ -262,10 +190,15 @@ def convert_density(value: float, from_unit: str, to_unit: str) -> float:
     -------
     float
         Converted value in the requested unit.
+
+    Raises
+    ------
+    ValueError
+        If either `from_unit` or `to_unit` is not recognised.
     """
     # Step 1: Normalise units
-    from_unit = normalise_unit(from_unit, DENSITY_LABELS)
-    to_unit = normalise_unit(to_unit, DENSITY_LABELS)
+    from_unit = normalise_unit(from_unit, "density")
+    to_unit = normalise_unit(to_unit, "density")
 
     # Step 2: Convert to g/L
     if from_unit in DENSITY_TO_G_L:
@@ -284,6 +217,80 @@ def convert_density(value: float, from_unit: str, to_unit: str) -> float:
         return from_gl(value_in_gl)
     else:
         raise ValueError(f"Unsupported density unit: {to_unit}")
+    
+def density_correction(
+    density_scale: str = "SG",
+    temp_scale: str = "C",
+    density_measured: float = 1.000,
+    reading_temp: float = 20.0,
+    calibration_temp: float = 20.0,
+) -> float:
+    """
+    Apply temperature correction to a density measurement.
+
+    Parameters
+    ----------
+    density_scale : str
+        Density unit for both input and output (e.g. "SG", "Plato", "Brix").
+        Defaults to "SG".
+    temp_scale : str
+        Temperature scale for reading_temp and calibration_temp ("C" or "F").
+        Defaults to "C".
+    density_measured : float
+        The density value obtained with a hydrometer.
+    reading_temp : float
+        The temperature at which the hydrometer reading was taken.
+    calibration_temp : float
+        The hydrometer's calibration temperature.
+
+    Returns
+    -------
+    float
+        The corrected density value in the same scale as the input.
+
+    Notes
+    -----
+    - Hydrometers are typically calibrated at 20 °C (68 °F).
+    - Corrections are approximate and based on a standard ASBC polynomial.
+    - Works with any supported density scale via convert_density() and with
+      Celsius/Fahrenheit via convert_temperature().
+    """
+
+    # Step 1: Validate and normalise density and temperature scales
+    density_scale = normalise_unit(density_scale, "density")
+    temp_scale = normalise_unit(temp_scale, "temperature")
+
+
+    # Step 2: Convert input density to SG for internal correction
+    sg_value: float = convert_density(density_measured, density_scale, "sg")
+
+    # Step 3: Convert temperatures to Fahrenheit (polynomial is °F-based)
+    reading_temp_f: float = convert_temperature(reading_temp, temp_scale, "f")
+    calibration_temp_f: float = convert_temperature(calibration_temp, temp_scale, "f")
+
+    # Step 4: Apply ASBC polynomial correction to get corrected SG
+    corrected_sg: float = (
+        sg_value
+        * (
+            1.00130346
+            - 0.000134722124 * reading_temp_f
+            + 0.00000204052596 * (reading_temp_f ** 2)
+            - 0.00000000232820948 * (reading_temp_f ** 3)
+        )
+        / (
+            1.00130346
+            - 0.000134722124 * calibration_temp_f
+            + 0.00000204052596 * (calibration_temp_f ** 2)
+            - 0.00000000232820948 * (calibration_temp_f ** 3)
+        )
+    )
+
+    # Step 5: Convert corrected SG back to user's density scale
+    corrected_density: float = convert_density(corrected_sg, "sg", density_scale)
+
+    # Step 6: Return corrected density
+    return corrected_density
+
 
 # MASS (base unit: grams)
 
@@ -317,24 +324,14 @@ def convert_mass(value: float, from_unit: str, to_unit: str) -> float:
     -------
     float
         The converted mass in the requested unit.
-
-    Raises
-    ------
-    ValueError
-        If either `from_unit` or `to_unit` is not recognised.
     """
     # Step 1: Normalise units
-    from_unit = normalise_unit(from_unit, MASS_LABELS)
-    to_unit = normalise_unit(to_unit, MASS_LABELS)
+    from_unit = normalise_unit(from_unit, "mass")
+    to_unit = normalise_unit(to_unit, "mass")
 
-    # Step 2: Check validity
-    if from_unit not in MASS_TO_G or to_unit not in MASS_TO_G:
-        raise ValueError(f"Unsupported mass unit: {from_unit} or {to_unit}")
-
-    # Step 3: Convert
+    # Step 2: Convert
     value_in_g = value * MASS_TO_G[from_unit]
     return value_in_g / MASS_TO_G[to_unit]
-
 
 
 # TEMPERATURE (base unit: °C)
@@ -386,28 +383,19 @@ def convert_temperature(value: float, from_unit: str, to_unit: str) -> float:
     -------
     float
         The converted temperature in the requested unit.
-
-    Raises
-    ------
-    ValueError
-        If either `from_unit` or `to_unit` is not recognised after normalisation.
     """
     # Step 1: Normalise units
-    from_unit = normalise_unit(from_unit, TEMP_LABELS)
-    to_unit = normalise_unit(to_unit, TEMP_LABELS)
+    from_unit = normalise_unit(from_unit, "temperature")
+    to_unit = normalise_unit(to_unit, "temperature")
 
-    # Step 2: Check validity
-    if from_unit not in OTHER_TO_C or to_unit not in C_TO_OTHER:
-        raise ValueError(f"Unsupported temperature unit: {from_unit} or {to_unit}")
-
-    # Step 3: Convert
+    # Step 2: Convert
     value_in_c = OTHER_TO_C[from_unit](value)
     return C_TO_OTHER[to_unit](value_in_c)
 
 
-# VOLUME (base unit: liters)
+# VOLUME (base unit: litres)
 
-# Conversion factors to liters
+# Conversion factors to litres
 VOLUME_TO_L: Dict[str, float] = {
     "ml": 0.001,
     "l": 1,
@@ -444,40 +432,123 @@ def convert_volume(value: float, from_unit: str, to_unit: str) -> float:
     -------
     float
         The converted volume in the requested unit.
-
-    Raises
-    ------
-    ValueError
-        If either `from_unit` or `to_unit` is not recognised.
     """
     # Step 1: Normalise units
-    from_unit = normalise_unit(from_unit, VOLUME_LABELS)
-    to_unit = normalise_unit(to_unit, VOLUME_LABELS)
+    from_unit = normalise_unit(from_unit, "volume")
+    to_unit = normalise_unit(to_unit, "volume")
 
-    # Step 2: Check validity
-    if from_unit not in VOLUME_TO_L or to_unit not in VOLUME_TO_L:
-        raise ValueError(f"Unsupported volume unit: {from_unit} or {to_unit}")
-
-    # Step 3: Convert
+    # Step 2: Convert
     value_in_l = value * VOLUME_TO_L[from_unit]
     return value_in_l / VOLUME_TO_L[to_unit]
 
+#  
+class ConversionCategory(NamedTuple):
+    """
+    Represents a unit conversion category (e.g., volume, mass, temperature).
+    
+    Each category groups together:
+      - A canonical (base) unit for backend storage/processing
+      - A dictionary of units belonging to this category
+      - Conversion functions for each unit relative to the canonical unit
+    
+    This allows:
+      - Consistent unit handling across the application
+      - Easy addition of new units by extending the dictionary
+      - Decoupling backend logic (always using canonical units) from frontend
+        display (user-preferred units)
+    
+    Example:
+        The 'volume' category might have 'l' as canonical, with 'ml' and 'gal'
+        as supported units. Conversions are defined relative to 'l'.
+    """
+    label: str  # Category label (for UI, e.g. "Alcohol")
+    function: Callable[[float, str, str], float]
+    units: dict[str, str]  # unit -> user-facing label
 
-# Mapping of categories to conversion functions
-CONVERSION_FUNCTIONS: dict[str, Callable[[float, str, str], float]] = {
-    "alcohol": convert_alcohol,
-    "density": convert_density,
-    "mass": convert_mass,
-    "temperature": convert_temperature,
-    "volume": convert_volume,
+
+# Global registry of all conversion categories, used for consistent unit handling across the app
+CONVERSIONS: dict[str, ConversionCategory] = {
+    "alcohol": ConversionCategory(
+        label = "Alcohol Content",
+        function = convert_alcohol,
+        units = {
+            "abv": "ABV",
+            "abw": "ABW",
+            "proof(us)": "Proof (US)",
+            "proof(uk)": "Proof (UK)",
+        },
+    ),
+    "density": ConversionCategory(
+        label = "Density",
+        function = convert_density,
+        units = {
+            "sg": "Specific Gravity (SG)",
+            "brix": "°Bx (Brix)",
+            "plato": "°P (Plato)",
+            "oe": "°Oe (Oechsle)",
+            "tw": "°Tw (Twaddell)",
+            "g/ml": "g/mL",
+            "g/l": "g/L",
+            "kg/m3": "kg/m³",
+            "lb/gal(us)": "lb/gal (US)",
+            "lb/gal(uk)": "lb/gal (UK)",
+            "lb/ft3": "lb/ft³",
+        },
+    ),
+    "mass": ConversionCategory(
+        label = "Mass",
+        function = convert_mass,
+        units = {
+            "mg": "mg",
+            "g": "g",
+            "kg": "kg",
+            "tonne": "t",
+            "gr": "gr",
+            "dr": "dr",
+            "oz": "oz",
+            "lb": "lb",
+            "ton": "ton",
+        },
+    ),
+    "volume": ConversionCategory(
+        label = "Volume",
+        function = convert_volume,
+        units = {
+            "ml": "mL",
+            "l": "L",
+            "cl": "cL",
+            "dl": "dL",
+            "m3": "m³",
+            "tsp": "tsp",
+            "tbsp": "tbsp",
+            "fl_oz": "fl oz",
+            "cup": "cup",
+            "pt": "pt",
+            "qt": "qt",
+            "gal": "gal",
+            "imp_fl_oz": "imp fl oz",
+            "imp_pt": "imp pt",
+            "imp_qt": "imp qt",
+            "imp_gal": "imp gal",
+        },
+    ),
+    "temperature": ConversionCategory(
+        label = "Temperature",
+        function = convert_temperature,
+        units = {
+            "c": "°C",
+            "f": "°F",
+            "k": "K",
+        },
+    ),
 }
+
 
 def convert(category: str, from_unit: str, to_unit: str, value: float) -> float:
     """
     Unified conversion function for alcohol, density, mass, temperature, and volume.
 
-    Parameters
-    ----------
+    Parameters:
     category : str
         The category of the unit ("alcohol", "density", "mass", "temperature", "volume").
     from_unit : str
@@ -487,18 +558,19 @@ def convert(category: str, from_unit: str, to_unit: str, value: float) -> float:
     value : float
         The numeric value to convert.
 
-    Returns
-    -------
+    Returns:
     float
         The converted value in the requested unit.
 
-    Raises
-    ------
+    Raises:
     ValueError
         If the category is unsupported.
     """
-    category = category.lower()  # normalise category input
-    if category not in CONVERSION_FUNCTIONS:
+    category = category.lower()
+
+    if category not in CONVERSIONS:
         raise ValueError(f"Unsupported category: {category}")
 
-    return CONVERSION_FUNCTIONS[category](value, from_unit, to_unit)
+    conv_category = CONVERSIONS[category]
+
+    return conv_category.function(value, from_unit, to_unit)
