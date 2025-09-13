@@ -1,4 +1,9 @@
 # fermentation.py
+"""
+Module for fermentation-related calculations, including Alcohol By Volume (ABV)
+estimation and priming sugar calculations.
+"""
+
 from conversions import ( 
     normalise_unit,
     convert_alcohol, 

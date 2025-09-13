@@ -1,4 +1,7 @@
 # conversions.py
+"""
+Module for unit conversions related to brewing (alcohol content, density, mass, temperature, volume).
+"""
 
 from typing import Callable, Dict, NamedTuple
 

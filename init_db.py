@@ -1,3 +1,7 @@
+# init_db.py
+"""Module to initialize the SQLite database with the required schema.
+"""
+
 import sqlite3
 from pathlib import Path
 
