@@ -12,6 +12,7 @@ It includes:
 
 - conversions.py – Unit and measurement conversion functions
 - fermentation.py – Fermentation calculations and helpers
+- recipe_manager.py – Recipe creation, editing, scaling, and saving functions
 - init_db.py – Script to create the database tables
 - data/schema/schema_01_ingredients_recipes.sql – SQL schema for ingredients and recipes
 
@@ -24,6 +25,12 @@ git clone https://github.com/DominicBeniamin/Brewcode.git
 python init_db.py
 
 3. Use the provided scripts for calculations and recipe management.
+
+## Roadmap
+
+- Add inventory management with FIFO costing
+- Expand fermentation calculators
+- Interactive frontend for recipe planning and batch tracking
 
 ## License
 

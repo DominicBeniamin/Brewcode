@@ -44,7 +44,22 @@ class RecipeData(TypedDict):
     stages: List[StageDict]
     ingredients: List[IngredientDict]
 
+# Database connection helper
+def create_db_connection(db_path: str = "brewcode.db") -> sqlite3.Connection:
+    """
+    Create a new SQLite database connection with foreign key support enabled.
 
+    Args:
+        db_path (str): Path to the SQLite database file. Defaults to 'brewcode.db'.
+
+    Returns:
+        sqlite3.Connection: Active database connection with foreign keys enforced.
+    """
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    return conn
+
+# Recipe management functions
 def get_recipe(conn: sqlite3.Connection, recipe_id: int) -> RecipeData:
     """
     Retrieve a recipe and its related stages and ingredients from the database.
@@ -158,3 +173,128 @@ def scale_recipe(recipe: RecipeData, desired_volume: float) -> RecipeData:
                 raise ValueError(f"Unknown scaling method: {ing['scalingMethod']}")
 
     return scaled_recipe
+
+def create_recipe(conn: sqlite3.Connection, recipe_data: RecipeData) -> int:
+    """
+    Insert a recipe and all its stages + ingredients into the database.
+
+    Args:
+        conn (sqlite3.Connection): Active SQLite database connection.
+        recipe_data (RecipeData): Full recipe dictionary including stages and ingredients.
+
+    Returns:
+        int: The recipeID of the newly inserted recipe.
+    """
+    cur = conn.cursor()
+
+    # --- Insert recipe ---
+    recipe = recipe_data["recipe"]
+    cur.execute(
+        """
+        INSERT INTO recipes (name, description, batchSizeL, notes)
+        VALUES (?, ?, ?, ?)
+        """,
+        (recipe["name"], recipe["description"], recipe["batchSizeL"], recipe["notes"]),
+    )
+    recipe_id = cur.lastrowid
+    if recipe_id is None:
+        raise RuntimeError("Failed to retrieve recipe_id after insertion.")
+
+    # --- Insert stages ---
+    for stage in recipe_data["stages"]:
+        cur.execute(
+            """
+            INSERT INTO recipeStages
+                (recipeID, stageTypeID, stageOrder, name, instructions, durationDays, isOptional)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                recipe_id,
+                stage["stageTypeID"],
+                stage["stageOrder"],
+                stage["name"],
+                stage["instructions"],
+                stage["durationDays"],
+                int(stage["isOptional"]),
+            ),
+        )
+        stage_id = cur.lastrowid
+
+        # --- Insert ingredients for this stage ---
+        for ing in stage["ingredients"]:
+            cur.execute(
+                """
+                INSERT INTO recipeIngredients
+                    (stageID, itemID, amount, unit, timing, scalingMethod, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    stage_id,
+                    ing["itemID"],
+                    ing["amount"],
+                    ing["unit"],
+                    ing["timing"],
+                    ing["scalingMethod"],
+                    ing["notes"],
+                ),
+            )
+
+    conn.commit()
+    return recipe_id
+
+
+def save_recipe(conn: sqlite3.Connection, recipe_data: RecipeData) -> None:
+    """Update an existing recipe, its stages, and ingredients in the database."""
+    cur = conn.cursor()
+
+    recipe = recipe_data["recipe"]
+    cur.execute(
+        """UPDATE recipes
+           SET name = ?, description = ?, batchSizeL = ?, notes = ?
+           WHERE recipeID = ?""",
+        (
+            recipe["name"],
+            recipe["description"],
+            recipe["batchSizeL"],
+            recipe["notes"],
+            recipe["recipeID"],
+        ),
+    )
+
+    for stage in recipe_data["stages"]:
+        cur.execute(
+            """UPDATE recipeStages
+               SET stageTypeID = ?, stageOrder = ?, name = ?,
+                   instructions = ?, durationDays = ?, isOptional = ?
+               WHERE stageID = ? AND recipeID = ?""",
+            (
+                stage["stageTypeID"],
+                stage["stageOrder"],
+                stage["name"],
+                stage["instructions"],
+                stage["durationDays"],
+                int(stage["isOptional"]),
+                stage["stageID"],
+                recipe["recipeID"],
+            ),
+        )
+
+        for ing in stage["ingredients"]:
+            cur.execute(
+                """UPDATE recipeIngredients
+                   SET itemID = ?, amount = ?, unit = ?, timing = ?,
+                       scalingMethod = ?, notes = ?
+                   WHERE recipeIngredientID = ? AND stageID = ?""",
+                (
+                    ing["itemID"],
+                    ing["amount"],
+                    ing["unit"],
+                    ing["timing"],
+                    ing["scalingMethod"],
+                    ing["notes"],
+                    ing["recipeIngredientID"],
+                    stage["stageID"],
+                ),
+            )
+
+    conn.commit()
